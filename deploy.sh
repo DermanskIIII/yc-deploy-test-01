@@ -2,7 +2,7 @@
 set -e
 
 USERNAME=$(whoami)
-echo "Подготовка для доступа к репозиторию(.ssh/known_hosts, deploy_key для доступа к репозиторию)..."
+echo "Подготовка для доступа к репозиторию (.ssh/known_hosts, deploy_key для доступа к репозиторию)..."
 install -m 700 -d /home/$USERNAME/.ssh
 
 cat >> /home/$USERNAME/.ssh/known_hosts << EOF
@@ -31,7 +31,7 @@ CONTAINER_NAME=genotek-test
 GITHUB_CLONE_URL=git@github.com:DermanskIIII
 GITHUB_REPO_NAME=yc-deploy-test-01
 
-echo "Установка ПО git, docker.io и их зависимостей"
+echo "Установка ПО git, docker.io и их зависимостей (может выполняться несколько минут)"
 sudo apt-get update 2>&1 >/dev/null
 sudo apt-get install -y --no-install-recommends git docker.io 2>&1 >/dev/null
 echo "Ок"
@@ -42,27 +42,73 @@ echo "Установка ПО Yandex.Cloud (yc)"
 curl -sSL https://storage.yandexcloud.net/yandexcloud-yc/install.sh 2>/dev/null | sudo bash -s -- -r /home/$USERNAME/.bashrc -i /opt/yc 2>/dev/null
 echo "Ок"
 
-GIT_REPO_DIR=`mktemp -q`
-
+GIT_REPO_DIR=`mktemp -dq`
 cd $GIT_REPO_DIR
+
+OLD_GIT_SSHCOMMAND=`bash +e -c "git config --global core.sshCommand; exit 0"`
+git config --global core.sshCommand "ssh -i /home/$USERNAME/.ssh/test_deploy_key"
 git clone $GITHUB_CLONE_URL/$GITHUB_REPO_NAME.git
 
+if [[ -z "$OLD_GIT_SSHCOMMAND" ]]
+then
+  git config --global --unset core.sshCommand
+else
+  git config --global core.sshCommand "$OLD_GIT_SSHCOMMAND"
+fi
+
+read -sp "Введите OAuth токен Yandex.Cloud (введённые символы не отображаются!):" YC_OAUTH_TOKEN
+
 newgrp docker << EOF
-  read -sp "Введите OAuth токен Yandex.Cloud (введённые символы не отображаются!):" YC_OAUTH_TOKEN
-  yc init --folder-name $YC_FOLDER_NAME --token $YC_OAUTH_TOKEN
-  YC_REGISTRY_ID=`yc container registry create | grep -E "^id" | awk "{ print $2 }"`
-
+  set -e
+  yc config set cloud-id "$YC_CLOUD_ID"
+  yc config set folder-id "$YC_FOLDER_ID"
+  yc config set token "$YC_OAUTH_TOKEN"
+  export YC_REGISTRY_ID=\`yc container registry create | grep -E "^id" | awk '{ print \$2 }'\`
+  export YC_REGISTRY_ID=crpvukehu45d1934q0ah
   yc container registry configure-docker
-
-  cd $GIT_REPO_DIR/$GITHUB_REPO_NAME
+  cd $GIT_REPO_DIR/$GITHUB_REPO_NAME/docker
+  echo "Приступаем к сборке образа..."
   docker build -t $DOCKER_IMAGE_NAME .
-  docker tag $DOCKER_IMAGE_NAME cr.yandex/$YC_REGISTRY_ID/$DOCKER_IMAGE_NAME:$DOCKER_IMAGE_TAG
-  docker push cr.yandex/$YC_REGISTRY_ID/$DOCKER_IMAGE_NAME:$DOCKER_IMAGE_TAG
-  docker pull cr.yandex/$YC_REGISTRY_ID/$DOCKER_IMAGE_NAME:$DOCKER_IMAGE_TAG 
-  docker run --rm -d --name $CONTAINER_NAME cr.yandex/$YC_REGISTRY_ID/$DOCKER_IMAGE_NAME:$DOCKER_IMAGE_TAG
-  exit 0
-EOF
+  echo "Успешно"
+  docker tag $DOCKER_IMAGE_NAME cr.yandex/\$YC_REGISTRY_ID/$DOCKER_IMAGE_NAME:$DOCKER_IMAGE_TAG
+  echo "Загружаем образ в реестр..."
+  docker push cr.yandex/\$YC_REGISTRY_ID/$DOCKER_IMAGE_NAME:$DOCKER_IMAGE_TAG
+  echo "Успешно"
+  docker run --restart unless-stopped --name $CONTAINER_NAME cr.yandex/\$YC_REGISTRY_ID/$DOCKER_IMAGE_NAME:$DOCKER_IMAGE_TAG
 
 exit 0
+EOF
 
 
+
+
+
+
+
+
+
+# sudo tee /etc/systemd/system/genotek-test.service >/dev/null << SERVICE_EOF
+# [Unit]
+#   Description=Genotek test container
+#   After=docker.service
+
+# [Service]
+#   User=$USERNAME
+#   Group=docker
+#   Type=exec
+#   Restart=on-failure
+#   ExecStart=/usr/bin/docker run --rm --name $CONTAINER_NAME cr.yandex/\$YC_REGISTRY_ID/$DOCKER_IMAGE_NAME:$DOCKER_IMAGE_TAG
+#   ExecStop=/usr/bin/docker stop $CONTAINER_NAME
+# [Install]
+#   WantedBy=multi-user.target
+# SERVICE_EOF
+
+
+# sudo systemctl daemon-reload
+# sudo systemctl enable --now genotek-test.service
+
+#echo "Контейнер запущен и работает"
+#read -p ""
+
+
+#curl `docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' genotek-test

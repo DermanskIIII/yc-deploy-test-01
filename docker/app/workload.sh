@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
-time=$((`date +%s` - `stat -c %X ./executed`))
-if [ $time -ge 5 ]; then
+function getDate
+{
   /bin/date $1
   touch ./executed
   exit 0
-else
-  exit 1
-fi
+}
+test ! -f ./executed && getDate || test $((`date +%s` - `stat -c %X ./executed`)) -ge 5 && getDate || exit 1
