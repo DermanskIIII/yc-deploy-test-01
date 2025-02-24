@@ -60,7 +60,7 @@ echo
 newgrp docker << EOF
   set -e -o pipefail
   /opt/yc/bin/yc config set cloud-id "$YC_CLOUD_ID"
-  /opt/yc/bin/yc config set folder-id "$YC_FOLDER_ID"
+  /opt/yc/bin/yc config set folder-name "$YC_FOLDER_NAME"
   /opt/yc/bin/yc config set token "$YC_OAUTH_TOKEN"
   echo "Создаём реестр докер-образов ..."
   export YC_REGISTRY_ID=\`/opt/yc/bin/yc container registry create | grep -E "^id" | awk '{ print \$2 }'\`
@@ -73,7 +73,7 @@ newgrp docker << EOF
   rm -rf $TEMP_DIR
   docker tag $DOCKER_IMAGE_NAME cr.yandex/\$YC_REGISTRY_ID/$DOCKER_IMAGE_NAME:$DOCKER_IMAGE_TAG
   echo "Загружаем образ в реестр (может выполняться несколько минут)..."
-  docker push cr.yandex/\$YC_REGISTRY_ID/$DOCKER_IMAGE_NAME:$DOCKER_IMAGE_TAG >/dev/null 2>&1
+  docker push cr.yandex/\$YC_REGISTRY_ID/$DOCKER_IMAGE_NAME:$DOCKER_IMAGE_TAG >/dev/null 
   echo "Успешно"
   docker run -d --restart always --name $CONTAINER_NAME cr.yandex/\$YC_REGISTRY_ID/$DOCKER_IMAGE_NAME:$DOCKER_IMAGE_TAG
   echo "Контейнер запущен и ожидает запроса на 80 порту."
