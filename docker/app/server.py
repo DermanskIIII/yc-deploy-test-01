@@ -21,9 +21,6 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
             self.send_response(500)
             self.send_header('Content-type', 'text/plain')
             self.end_headers()
-    # def serve_forever(self):
-    #     while not self.stopped:
-    #         self.handle_request()
 
 Handler = MyHandler
 with socketserver.TCPServer(("0.0.0.0", PORT), Handler, False) as httpd:

@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 function getDate
 {
-  /bin/date $1
+  /bin/echo -n `/bin/date`
   touch ./executed
   exit 0
 }
-test ! -f ./executed && getDate || test $((`date +%s` - `stat -c %X ./executed`)) -ge 5 && getDate || exit 1
+test ! -f ./executed && getDate || \
+  test $((`date +%s` - `stat -c %X ./executed`)) -ge 5 && getDate || \
+  exit 1
 
 # При запуске скрипт выводит текущую дату\время и успешно завершается (exit 0), если файла ./executed не 
 # существует, или если он создан более 5 секунд назад, а также выполняет touch для этого файла, что
