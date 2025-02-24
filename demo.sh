@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 
-IP=`docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' genotek-test`
-
-true 
+IP=`newgrp docker <<< "docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' genotek-test"`
 
 cat << EOF
 Логика работы скрипта запускаемого веб-приложением такова, что корректно отрабатывать он должен

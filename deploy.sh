@@ -38,8 +38,9 @@ sudo usermod -aG docker $USERNAME
 
 echo "Установка ПО Yandex.Cloud (утилита yc)..."
 curl -sSL https://storage.yandexcloud.net/yandexcloud-yc/install.sh 2>/dev/null | \
-  sudo bash -s -- -r /home/$USERNAME/.bashrc -i /opt/yc 2>/dev/null
+  sudo bash -s -- -r /home/$USERNAME/.bashrc -i /opt/yc >/dev/null 2>&1
 echo "Успешно"
+
 TEMP_DIR=`mktemp -dq`
 cd $TEMP_DIR
 
@@ -57,28 +58,29 @@ test -z "$OLD_GIT_SSHCOMMAND" && \
 read -p "Введите Cloud.ID: " YC_CLOUD_ID
 read -sp "Введите OAuth токен Yandex.Cloud (введённые символы не отображаются!):" YC_OAUTH_TOKEN
 echo
-newgrp docker << EOF
+newgrp docker << NEWGRP_EOF 
   set -e -o pipefail
-  /opt/yc/bin/yc config set cloud-id "$YC_CLOUD_ID"
-  /opt/yc/bin/yc config set folder-name "$YC_FOLDER_NAME"
-  /opt/yc/bin/yc config set token "$YC_OAUTH_TOKEN"
+  PATH=/opt/yc/bin:$PATH
+  yc config set cloud-id "$YC_CLOUD_ID"
+  yc config set folder-name "$YC_FOLDER_NAME"
+  yc config set token "$YC_OAUTH_TOKEN"
   echo "Создаём реестр докер-образов ..."
-  export YC_REGISTRY_ID=\`/opt/yc/bin/yc container registry create | grep -E "^id" | awk '{ print \$2 }'\`
-  /opt/yc/bin/yc container registry configure-docker
+  YC_REGISTRY_ID=\`yc container registry create | grep -E "^id" | awk '{ print \$2 }'\`
   cd $TEMP_DIR/$GITHUB_REPO_NAME/docker
-  echo "Приступаем к сборке образа (может выполняться несколько минут)..."
-  docker build -t $DOCKER_IMAGE_NAME . >/dev/null 2>&1
+  echo "Приступаем к сборке образа..."
+  docker build -t $DOCKER_IMAGE_NAME . 
   echo "Успешно"
   cd ~
   rm -rf $TEMP_DIR
   docker tag $DOCKER_IMAGE_NAME cr.yandex/\$YC_REGISTRY_ID/$DOCKER_IMAGE_NAME:$DOCKER_IMAGE_TAG
-  echo "Загружаем образ в реестр (может выполняться несколько минут)..."
-  docker push cr.yandex/\$YC_REGISTRY_ID/$DOCKER_IMAGE_NAME:$DOCKER_IMAGE_TAG >/dev/null 
+  echo $YC_OAUTH_TOKEN | docker login --username oauth --password-stdin cr.yandex
+  echo "Загружаем образ в реестр..."
+  docker push cr.yandex/\$YC_REGISTRY_ID/$DOCKER_IMAGE_NAME:$DOCKER_IMAGE_TAG
   echo "Успешно"
   docker run -d --restart always --name $CONTAINER_NAME cr.yandex/\$YC_REGISTRY_ID/$DOCKER_IMAGE_NAME:$DOCKER_IMAGE_TAG
   echo "Контейнер запущен и ожидает запроса на 80 порту."
 exit 0
-EOF
+NEWGRP_EOF
 
 cat << EOF
 
