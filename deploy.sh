@@ -22,7 +22,6 @@ HT+zNGLQvmMTgxRZiHSKAAAAC2l2YW5kQG1zYXRhAQI=
 -----END OPENSSH PRIVATE KEY-----
 EOF
 chmod 600 /home/$USERNAME/.ssh/test_deploy_key
-echo "Ок"
 
 YC_FOLDER_NAME=default
 DOCKER_IMAGE_NAME=genotek-test
@@ -31,24 +30,22 @@ CONTAINER_NAME=genotek-test
 GITHUB_CLONE_URL=git@github.com:DermanskIIII
 GITHUB_REPO_NAME=yc-deploy-test-01
 
-echo "Установка ПО git, docker.io и их зависимостей (может выполняться несколько минут)"
+echo "Установка ПО git, docker.io и их зависимостей (может выполняться несколько минут)..."
 sudo apt-get update 2>&1 >/dev/null
 sudo apt-get install -y --no-install-recommends git docker.io 2>&1 >/dev/null
-echo "Ок"
+echo "Успешно"
 
 sudo usermod -aG docker $USERNAME
 
-echo "Установка ПО Yandex.Cloud (yc)"
-curl -sSL https://storage.yandexcloud.net/yandexcloud-yc/install.sh 2>/dev/null | sudo bash -s -- -r /home/$USERNAME/.bashrc -i /opt/yc 2>/dev/null
-echo "Ок"
-
+echo "Установка ПО Yandex.Cloud (утилита yc)..."genotek
 GIT_REPO_DIR=`mktemp -dq`
 cd $GIT_REPO_DIR
 
 OLD_GIT_SSHCOMMAND=`bash +e -c "git config --global core.sshCommand; exit 0"`
 git config --global core.sshCommand "ssh -i /home/$USERNAME/.ssh/test_deploy_key"
+echo "Клонируем репозиторий приложения..."
 git clone $GITHUB_CLONE_URL/$GITHUB_REPO_NAME.git
-
+echo "Успешно"
 if [[ -z "$OLD_GIT_SSHCOMMAND" ]]
 then
   git config --global --unset core.sshCommand
@@ -60,22 +57,23 @@ read -sp "Введите OAuth токен Yandex.Cloud (введённые си�
 
 newgrp docker << EOF
   set -e
-  yc config set cloud-id "$YC_CLOUD_ID"
-  yc config set folder-id "$YC_FOLDER_ID"
-  yc config set token "$YC_OAUTH_TOKEN"
+  /opt/yc/bin/yc config set cloud-id "$YC_CLOUD_ID"
+  /opt/yc/bin/yc config set folder-id "$YC_FOLDER_ID"
+  /opt/yc/bin/yc config set token "$YC_OAUTH_TOKEN"
+  echo "Создаём реестр докер-образов ..."
   export YC_REGISTRY_ID=\`yc container registry create | grep -E "^id" | awk '{ print \$2 }'\`
-  export YC_REGISTRY_ID=crpvukehu45d1934q0ah
-  yc container registry configure-docker
+  /opt/yc/bin/yc container registry configure-docker
   cd $GIT_REPO_DIR/$GITHUB_REPO_NAME/docker
   echo "Приступаем к сборке образа..."
   docker build -t $DOCKER_IMAGE_NAME .
   echo "Успешно"
+  cd ~
+  rm -rf $GIT_REPO_DIR
   docker tag $DOCKER_IMAGE_NAME cr.yandex/\$YC_REGISTRY_ID/$DOCKER_IMAGE_NAME:$DOCKER_IMAGE_TAG
   echo "Загружаем образ в реестр..."
   docker push cr.yandex/\$YC_REGISTRY_ID/$DOCKER_IMAGE_NAME:$DOCKER_IMAGE_TAG
   echo "Успешно"
   docker run --restart unless-stopped --name $CONTAINER_NAME cr.yandex/\$YC_REGISTRY_ID/$DOCKER_IMAGE_NAME:$DOCKER_IMAGE_TAG
-
 exit 0
 EOF
 

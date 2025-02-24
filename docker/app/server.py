@@ -21,12 +21,20 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
             self.send_response(500)
             self.send_header('Content-type', 'text/plain')
             self.end_headers()
+    # def serve_forever(self):
+    #     while not self.stopped:
+    #         self.handle_request()
 
 Handler = MyHandler
-with socketserver.TCPServer(("0.0.0.0", PORT), Handler) as httpd:
+with socketserver.TCPServer(("0.0.0.0", PORT), Handler, False) as httpd:
     print(f"serving at port {PORT}")
     try:
+        httpd.allow_reuse_address = True
+        httpd.server_bind()
+        httpd.server_activate()
         httpd.serve_forever()
     except KeyboardInterrupt:
         print("Shutting down server...")
         httpd.server_close()
+
+# Прослушивает 80 порт на всех доступных интерфесах. Обрабатывает GET-запросы с любыми URL, вызывая скрипт.
