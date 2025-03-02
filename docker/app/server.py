@@ -1,7 +1,7 @@
 import http.server
 import socketserver
 import subprocess
-import os
+#import os
 
 PORT = 80
 SCRIPT_PATH = "./workload.sh"
